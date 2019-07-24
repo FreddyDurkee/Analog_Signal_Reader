@@ -16,19 +16,21 @@ float convert_to_voltage(uint16_t);
 
 int main(void)
 {
-	adc_init_single_conversion(DF_128, REF_11);
+	adc_init_triggered_conversions(DF_128, free_running_mode, REF_11);
 	usart_init_transmission(__UBRR);
 	
 	set_channel(0);
+	start_conversion();
     sei();
 	
 	uint16_t voltage;
 	
     while (1) 
     {
-		start_conversion();
+		
+		adc_result = ADCW;
 		voltage = convert_to_voltage(adc_result);
-		usart_put_float(adc_result, 3);
+		usart_put_int(adc_result);
 		usart_put_char('\n');
     }
 }
