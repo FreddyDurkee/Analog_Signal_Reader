@@ -37,7 +37,7 @@ void adc_init_triggered_conversions(enum Division_Factor df,enum  Trigger_Source
 }
 
 void adc_init_single_conversion(enum Division_Factor df,enum  Voltage_Reference vref){
-	ADCSRA |= (1<<ADEN);
+	ADCSRA |= (1<<ADEN) | (1<<ADIE);
 	ADCSRA |= df;
 	ADMUX |= (ADMUX & CLEAN_TRIGGER_SOURCE) | vref;
 }
