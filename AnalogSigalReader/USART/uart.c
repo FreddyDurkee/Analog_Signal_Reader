@@ -10,13 +10,14 @@
 #include <stdlib.h>
 #include <util/delay.h>
 
+
 void usart_put_float(float num, int precission)
 {
 	char c[10];
 	int inum = num;
 	int numSize = sizeof(inum) + precission;
 	dtostrf(num, numSize, precission, c);
-	usart_put_string(c);
+	uart_puts(c);
 }
 
 void usart_put_int(int num)
