@@ -5,10 +5,9 @@
 * Author : Dominika Wójcik
 */
 
-//#define F_CPU 16000000UL
-//#define UART_BAUD 9600
-//#define _UBRR ((F_CPU+UART_BAUD*8UL) / (16UL*UART_BAUD)-1)
-#define  SAMPLES 10
+#define  NUM_AVG_SAMPLES 10
+#define  DEF_SAMPLES NUM_AVG_SAMPLES*CHANNELS_AMOUNT
+#define  CHANNELS_AMOUNT 2
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -18,67 +17,74 @@
 #include "ADC/adc.h"
 
 
-volatile uint16_t adc_result;
-volatile uint16_t adc_sum = 0;
+volatile uint16_t adc1_result = 0;
+volatile uint16_t adc0_result = 0;
+volatile uint16_t adc1_sum = 0, sum1;
+volatile uint16_t adc0_sum = 0, sum0;
 volatile uint8_t counter = 0;
 volatile uint8_t channel = 0;
 volatile uint8_t flag = 0;
 
 float convert_to_voltage(uint16_t);
 void usart_putf(float num, int precission);
+void milis_timer(uint8_t miliS);
 
 int main(void)
 {
-	adc_init_single_conversion(DF_128, REF_11);
+	adc_init_triggered_conversions(DF_128, timer0_compare_match, REF_11);
 	set_channel(channel);
 	uart_init(__UBRR);
-	start_conversion();
+	milis_timer(4);
+	
 	sei();
 	
+	//start_conversion();
 	float voltage;
 	float average;
-	
+	uint16_t i = 0 ;
+	char adc_str[6], i_str[6];
 	while (1)
 	{
-		voltage = convert_to_voltage(adc_result);
-		usart_putf(voltage, 3);
-		uart_putc('\n');
-		//if(counter==0){
-			//average = adc_sum*1.0/SAMPLES;
-			////voltage = convert_to_voltage(average);
-			//usart_putf(average, 3);
-			//adc_sum = 0;
-			//if(flag == 0){
-				//uart_putc(';');
-			//}
-			//else{
-				//uart_putc('\n');
-			//}	
-		//}
-	//}
+		if(counter == 0){
+			average = sum0 * 1.0/NUM_AVG_SAMPLES;
+			voltage = convert_to_voltage(average);
+			usart_putf(voltage, 3);
+			uart_putc(';');
+			
+			average = sum1 * 1.0/NUM_AVG_SAMPLES;
+			voltage = convert_to_voltage(average);
+			usart_putf(voltage, 3);
+			uart_putc('\n');
+		}
+	}
 }
+
+ISR(TIMER0_COMPA_vect){	
 }
 
 ISR(ADC_vect){
-	adc_result = ADCW;
-	start_conversion();
+	if(flag){
+		adc1_result = ADCW;
+		adc1_sum += adc1_result;
+		ADMUX = 0b11000000;
+		flag=0;
 	}
-			
-	//if(counter < SAMPLES){
-		//adc_result = ADCW;
-		//start_conversion();
-		//adc_sum += adc_result;
-		//counter++;
-	//}
-	//else{
-		//counter = 0;
-		//channel++;
-		//channel %= 2;
-		//set_channel(channel);
-		//flag = channel;
-	//}
-
-
+	else{
+		adc0_result = ADCW;
+		adc0_sum += adc0_result;
+		ADMUX = 0b11000001;
+		flag=1;
+	}
+	counter++;
+	if(counter >= DEF_SAMPLES){
+		counter=0;
+		sum1 = adc1_sum;
+		sum0 = adc0_sum;
+		adc0_sum = 0;
+		adc1_sum = 0;
+		
+	}
+}
 
 float convert_to_voltage(uint16_t adc_result){
 	return (adc_result * 1.1)/1024;
@@ -91,4 +97,11 @@ void usart_putf(float num, int precission)
 	int numSize = sizeof(inum) + precission;
 	dtostrf(num, numSize, precission, c);
 	uart_puts(c);
+}
+
+void milis_timer(uint8_t miliS){
+	TCCR0A |= (1<< WGM01);           // set CTC
+	TCCR0B |= (1<<CS02) | (1<<CS00); //PRESCALER 1024
+	OCR0A = miliS*7.8125-1; 		 // Fcpu*milis/(1000*2*N)-1
+	TIMSK0 |= (1<<OCIE0A);
 }
